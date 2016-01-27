@@ -19,7 +19,7 @@ class RateLimiterTest extends TestKit(ActorSystem("system")) with MarathonSpec w
 
     limiter.addDelay(app)
 
-    limiter.getDelay(app) should be(clock.now() + 10.seconds)
+    limiter.getDeadline(app) should be(clock.now() + 10.seconds)
   }
 
   test("addDelay for existing delay") {
@@ -29,22 +29,27 @@ class RateLimiterTest extends TestKit(ActorSystem("system")) with MarathonSpec w
     limiter.addDelay(app)
     limiter.addDelay(app)
 
-    limiter.getDelay(app) should be(clock.now() + 20.seconds)
+    limiter.getDeadline(app) should be(clock.now() + 20.seconds)
   }
 
-  test("cleanupOverdueDelays") {
+  test("resetViableTasksDelays") {
+    val time_origin = clock.now()
     val limiter = new RateLimiter(clock)
-    val overdue = AppDefinition(id = "overdue".toPath, backoff = 10.seconds)
-    limiter.addDelay(overdue)
-    val stillWaiting = AppDefinition(id = "test".toPath, backoff = 20.seconds)
+    val threshold = limiter.getMinimumTaskExecutionSeconds
+    val viable = AppDefinition(id = "viable".toPath, backoff = 10.seconds)
+    limiter.addDelay(viable)
+    val notYetViable = AppDefinition(id = "notYetViable".toPath, backoff = 20.seconds)
+    limiter.addDelay(notYetViable)
+    val stillWaiting = AppDefinition(id = "test".toPath, backoff = (threshold + 20).seconds)
     limiter.addDelay(stillWaiting)
 
-    clock += 11.seconds
+    clock += (threshold + 11).seconds
 
-    limiter.cleanUpOverdueDelays()
+    limiter.resetViableTasksDelays()
 
-    limiter.getDelay(overdue) should be(clock.now())
-    limiter.getDelay(stillWaiting) should be(clock.now() + 9.seconds)
+    limiter.getDeadline(viable) should be(clock.now())
+    limiter.getDeadline(notYetViable) should be(time_origin + 20.seconds)
+    limiter.getDeadline(stillWaiting) should be(time_origin + (threshold + 20).seconds)
   }
 
   test("resetDelay") {
@@ -55,7 +60,7 @@ class RateLimiterTest extends TestKit(ActorSystem("system")) with MarathonSpec w
 
     limiter.resetDelay(app)
 
-    limiter.getDelay(app) should be(clock.now())
+    limiter.getDeadline(app) should be(clock.now())
   }
 
 }

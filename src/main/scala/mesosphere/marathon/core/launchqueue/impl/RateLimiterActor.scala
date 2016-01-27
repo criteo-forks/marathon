@@ -4,7 +4,7 @@ import akka.actor.{ Actor, ActorLogging, ActorRef, Cancellable, Props }
 import akka.event.LoggingReceive
 import mesosphere.marathon.core.launchqueue.impl.RateLimiterActor.{
   AddDelay,
-  CleanupOverdueDelays,
+  ResetViableTasksDelays,
   DecreaseDelay,
   DelayUpdate,
   GetDelay,
@@ -35,7 +35,7 @@ private[launchqueue] object RateLimiterActor {
   private[impl] case class AddDelay(app: AppDefinition)
   private[impl] case class DecreaseDelay(app: AppDefinition)
 
-  private case object CleanupOverdueDelays
+  private case object ResetViableTasksDelays
 }
 
 private class RateLimiterActor private (
@@ -47,7 +47,7 @@ private class RateLimiterActor private (
 
   override def preStart(): Unit = {
     import context.dispatcher
-    cleanup = context.system.scheduler.schedule(10.seconds, 10.seconds, self, CleanupOverdueDelays)
+    cleanup = context.system.scheduler.schedule(10.seconds, 10.seconds, self, ResetViableTasksDelays)
     log.info("started RateLimiterActor")
   }
 
@@ -62,27 +62,29 @@ private class RateLimiterActor private (
     ).reduceLeft(_.orElse[Any, Unit](_))
   }
 
+  /**
+    * If an app gets removed or updated, the delay should be reset. If
+    * an app is considered viable, the delay should be reset too. We
+    * check and reset viable tasks' delays periodically.
+    */
   private[this] def receiveCleanup: Receive = {
-    case CleanupOverdueDelays =>
-      // If an app gets removed or updated, the delay should be reset.
-      // Still, we can remove overdue delays before that and also make leaks less likely
-      // by calling this periodically.
-      rateLimiter.cleanUpOverdueDelays()
+    case ResetViableTasksDelays =>
+      rateLimiter.resetViableTasksDelays()
   }
 
   private[this] def receiveDelayOps: Receive = {
     case GetDelay(app) =>
-      sender() ! DelayUpdate(app, rateLimiter.getDelay(app))
+      sender() ! DelayUpdate(app, rateLimiter.getDeadline(app))
 
     case AddDelay(app) =>
       rateLimiter.addDelay(app)
-      launchQueueRef ! DelayUpdate(app, rateLimiter.getDelay(app))
+      launchQueueRef ! DelayUpdate(app, rateLimiter.getDeadline(app))
 
     case DecreaseDelay(app) => // ignore for now
 
     case ResetDelay(app) =>
       rateLimiter.resetDelay(app)
-      launchQueueRef ! DelayUpdate(app, rateLimiter.getDelay(app))
+      launchQueueRef ! DelayUpdate(app, rateLimiter.getDeadline(app))
       sender() ! ResetDelayResponse
   }
 }

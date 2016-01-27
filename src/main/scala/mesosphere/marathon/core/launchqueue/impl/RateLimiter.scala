@@ -19,13 +19,21 @@ private[launchqueue] class RateLimiter(clock: Clock) {
   /** The task launch delays per app and their last config change. */
   private[this] var taskLaunchDelays = Map[(PathId, Timestamp), Delay]()
 
-  def cleanUpOverdueDelays(): Unit = {
+  def getMinimumTaskExecutionSeconds: Long = minimumTaskExecutionSeconds
+
+  /**
+    * Reset delay for tasks that have reached the viability
+    * threshold. The deadline indicates when the task has been
+    * launched for the last time.
+    */
+  def resetViableTasksDelays(): Unit = {
     taskLaunchDelays = taskLaunchDelays.filter {
-      case (_, delay) => delay.deadline > clock.now()
+      case (_, delay) =>
+        clock.now() - FiniteDuration(minimumTaskExecutionSeconds, TimeUnit.SECONDS) < delay.deadline
     }
   }
 
-  def getDelay(app: AppDefinition): Timestamp =
+  def getDeadline(app: AppDefinition): Timestamp =
     taskLaunchDelays.get(app.id -> app.versionInfo.lastConfigChangeVersion).map(_.deadline) getOrElse clock.now()
 
   def addDelay(app: AppDefinition): Timestamp = {
@@ -69,10 +77,16 @@ private[launchqueue] class RateLimiter(clock: Clock) {
 }
 
 private object RateLimiter {
+  /**
+    * The viability threshold may be tuned later, once the mechanism
+    * has been validated.
+    */
+  private val minimumTaskExecutionSeconds: Long = 60
+
   private val log = LoggerFactory.getLogger(getClass.getName)
 
   private object Delay {
-    def apply(clock: Clock, app: AppDefinition): Delay = Delay(clock, app.backoff)
+    def apply(clock: Clock, app: AppDefinition): Delay = Delay(clock.now() + app.backoff, app.backoff)
     def apply(clock: Clock, delay: FiniteDuration): Delay = Delay(clock.now() + delay, delay)
   }
 
