@@ -174,10 +174,15 @@ private[health] class HealthCheckActor(
   }
 
   def checkEnoughInstancesRunning(): Boolean = {
-    val activeInstances = Await.result(instanceTracker.countActiveSpecInstances(app.id), 5 seconds)
-    val futureHealthyCapacity: Double = (activeInstances - 1) / app.instances.toDouble
-    logger.debug(s"[anti-snowball] checkEnoughInstancesRunning: $futureHealthyCapacity >= ${app.upgradeStrategy.minimumHealthCapacity}")
-    futureHealthyCapacity >= app.upgradeStrategy.minimumHealthCapacity
+    Try(Await.result(instanceTracker.countActiveSpecInstances(app.id), 5 seconds)) match {
+      case Success(activeInstances) =>
+            val futureHealthyCapacity: Double = (activeInstances - 1) / app.instances.toDouble
+            logger.debug(s"[anti-snowball] checkEnoughInstancesRunning: $futureHealthyCapacity >= ${app.upgradeStrategy.minimumHealthCapacity}")
+            futureHealthyCapacity >= app.upgradeStrategy.minimumHealthCapacity
+      case Failure(_) =>
+        logger.error(s"[anti-snowball] Timeout when checking active instances. We'll stay safe")
+        false
+    }
   }
 
   def ignoreFailures(instance: Instance, health: Health): Boolean = {
