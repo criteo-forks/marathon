@@ -163,8 +163,10 @@ private[health] class HealthCheckActor(
         Try(Await.ready(killed, 5 seconds)) match {
           case Success(future) => future.value.get match {
             case Success(done) =>
-              val activeInstances = Await.result(instanceTracker.countActiveSpecInstances(app.id), 5 seconds)
-              logger.info(s"Done killing $instanceId, $activeInstances remaining")
+              instanceTracker.countActiveSpecInstances(app.id).onComplete {
+                case Success(activeInstances) => logger.info(s"Done killing $instanceId, $activeInstances remaining")
+                case Failure(throwable) => logger.warn(s"[anti-snowball] Error when counting instance remaining: ${throwable.getMessage}. Since it is just for logging purpose, we don't care that much")
+              }
             case Failure(t) => logger.error(s"An error has occurred: ${t.getMessage}", t)
           }
           case Failure(_) => logger.error(s"Timed out killing instance $instanceId")
