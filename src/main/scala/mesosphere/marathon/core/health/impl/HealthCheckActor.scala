@@ -205,7 +205,7 @@ private[health] class HealthCheckActor(
       case Healthy(_, _, _, _) =>
         Future(health.update(result))
       case Unhealthy(_, _, _, _, _) =>
-        instanceTracker.instance(instanceId).map({
+        var unhealthyFuture = instanceTracker.instance(instanceId).map({
           case Some(instance) =>
             if (ignoreFailures(instance, health)) {
               // Don't update health
@@ -222,13 +222,18 @@ private[health] class HealthCheckActor(
             logger.error(s"Couldn't find instance $instanceId")
             health.update(result)
         })
+        Try(Await.ready(unhealthyFuture, 5 seconds)) match {
+          case Success(future) => future.value.get match {
+            case Success(newHealth) => self ! InstanceHealth(result, health, newHealth)
+            case Failure(t) => logger.error(s"An error has occurred: ${t.getMessage}", t)
+          }
+          case Failure(_) => logger.error(s"Timed out updating health $instanceId")
+        }
+        unhealthyFuture
     }
-    Try(Await.ready(updatedHealth, 5 seconds)) match {
-      case Success(future) => future.value.get match {
-        case Success(newHealth) => self ! InstanceHealth(result, health, newHealth)
-        case Failure(t) => logger.error(s"An error has occurred: ${t.getMessage}", t)
-      }
-      case Failure(_) => logger.error(s"Timed out updating health $instanceId")
+    updatedHealth.onComplete {
+      case Success(newHealth) => self ! InstanceHealth(result, health, newHealth)
+      case Failure(t) => logger.error(s"An error has occurred: ${t.getMessage}", t)
     }
   }
 
