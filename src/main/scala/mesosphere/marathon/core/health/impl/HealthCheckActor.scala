@@ -163,7 +163,6 @@ private[health] class HealthCheckActor(
             timestamp = health.lastFailure.getOrElse(Timestamp.now()).toString
           )
         )
-        // TODO prevent killingInFlight from growing by cleaning killed instances (probably in purgeStatusOfDoneInstances)
         killingInFlight = killingInFlight + instanceId
         logger.debug(s"[anti-snowball] killing ${instanceId}, currently ${killingInFlight.size} instances killingInFlight")
         killService.killInstancesAndForget(Seq(instance), KillReason.FailedHealthChecks)
