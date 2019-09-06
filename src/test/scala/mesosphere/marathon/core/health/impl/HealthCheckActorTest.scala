@@ -6,7 +6,7 @@ import akka.actor.Props
 import akka.testkit._
 import mesosphere.AkkaUnitTest
 import mesosphere.marathon.core.health.{Health, HealthCheck, MarathonHttpHealthCheck, PortReference}
-import mesosphere.marathon.core.instance.TestInstanceBuilder
+import mesosphere.marathon.core.instance.{Instance, TestInstanceBuilder}
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.termination.{KillReason, KillService}
 import mesosphere.marathon.core.task.tracker.InstanceTracker
@@ -44,6 +44,10 @@ class HealthCheckActorTest extends AkkaUnitTest {
 
     val unreachableInstance = TestInstanceBuilder.newBuilder(appId).addTaskUnreachable().getInstance()
     val unreachableTask: Task = unreachableInstance.appTask
+
+    def runningInstance(): Instance = {
+      TestInstanceBuilder.newBuilder(appId).addTaskRunning().getInstance()
+    }
 
     def actor(healthCheck: HealthCheck) = TestActorRef[HealthCheckActor](
       Props(
@@ -124,15 +128,16 @@ class HealthCheckActorTest extends AkkaUnitTest {
     //   verifyNoMoreInteractions(f.tracker, f.driver, f.scheduler)
     // }
 
-    // "task should not be killed if health check fails and not enough tasks are running" in {
-    //   val f = new Fixture
-    //   val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))))
+    "task should not be killed if health check fails and not enough tasks are running" in {
+      val f = new Fixture
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))))
 
-    //   when(f.tracker.countActiveSpecInstances(any)) thenReturn (Future(8))
-    //   actor.underlyingActor.checkConsecutiveFailures(f.instance, Health(f.instance.instanceId, consecutiveFailures = 3))
-    //   verify(f.tracker).countActiveSpecInstances(f.appId)
-    //   verifyNoMoreInteractions(f.tracker, f.driver, f.scheduler, f.killService)
-    // }
+      val instances = Seq.tabulate(8)(_ => f.runningInstance())
+      f.tracker.specInstancesSync(any) returns instances
+      actor.underlyingActor.checkConsecutiveFailures(f.instance, Health(f.instance.instanceId, consecutiveFailures = 3))
+      verify(f.tracker).specInstancesSync(f.appId)
+      verifyNoMoreInteractions(f.tracker, f.driver, f.scheduler, f.killService)
+    }
 
     // FIXME disabling this test for now, as the f.unreachableInstance is broken and does not provide an unreachable instance
     // "task should not be killed if health check fails, but the task is unreachable" in {
