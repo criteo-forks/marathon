@@ -1,11 +1,10 @@
 package mesosphere.marathon
 package core.health.impl
 
-import akka.Done
 import akka.actor.Props
 import akka.testkit._
 import mesosphere.AkkaUnitTest
-import mesosphere.marathon.core.health.{Health, HealthCheck, MarathonHttpHealthCheck, PortReference}
+import mesosphere.marathon.core.health._
 import mesosphere.marathon.core.instance.{Instance, TestInstanceBuilder}
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.termination.{KillReason, KillService}

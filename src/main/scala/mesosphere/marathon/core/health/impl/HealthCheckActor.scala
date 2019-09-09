@@ -15,10 +15,9 @@ import mesosphere.marathon.core.task.termination.{KillReason, KillService}
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.state.{AppDefinition, Timestamp}
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Try, Failure, Success}
-import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 private[health] class HealthCheckActor(
     app: AppDefinition,
