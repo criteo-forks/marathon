@@ -49,9 +49,14 @@ class HealthCheckActorTest extends AkkaUnitTest {
       TestInstanceBuilder.newBuilder(appId).addTaskRunning().getInstance()
     }
 
-    def actor(healthCheck: HealthCheck) = TestActorRef[HealthCheckActor](
+    def actor(healthCheck: HealthCheck, instances: Seq[Instance]) = TestActorRef[HealthCheckActor](
       Props(
-        new HealthCheckActor(app, appHealthCheckActor.ref, killService, healthCheck, tracker, system.eventStream)
+        new HealthCheckActor(app, appHealthCheckActor.ref, killService, healthCheck, tracker, system.eventStream) {
+          instances.map(instance => {
+            healthByInstanceId += (instance.instanceId -> Health(instance.instanceId)
+              .update(Healthy(instance.instanceId, instance.version)))
+          })
+        }
       )
     )
 
@@ -114,25 +119,25 @@ class HealthCheckActorTest extends AkkaUnitTest {
       verifyNoMoreInteractions(f.driver)
     }
 
-    // FIXME temp disabled
     // regression test for #1456
-    // "task should be killed if health check fails" in {
-    //   val f = new Fixture
-    //   val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))))
+    "task should be killed if health check fails" in {
+      val f = new Fixture
+      val healthyInstances = Seq.tabulate(9)(_ => f.runningInstance())
+      val unhealthyInstance = f.instance
+      val instances = healthyInstances.union(Seq(unhealthyInstance))
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), instances)
+      f.tracker.specInstancesSync(any) returns instances
 
-    //   when(f.tracker.countActiveSpecInstances(any)) thenReturn (Future(10)) thenReturn (Future(9))
-    //   when(f.killService.killInstances(Seq(f.instance), KillReason.FailedHealthChecks)) thenReturn (Future(Done))
-    //   actor.underlyingActor.checkConsecutiveFailures(f.instance, Health(f.instance.instanceId, consecutiveFailures = 3))
-    //   verify(f.tracker, times(2)).countActiveSpecInstances(f.appId)
-    //   verify(f.killService).killInstances(Seq(f.instance), KillReason.FailedHealthChecks)
-    //   verifyNoMoreInteractions(f.tracker, f.driver, f.scheduler)
-    // }
+      actor.underlyingActor.checkConsecutiveFailures(unhealthyInstance, Health(unhealthyInstance.instanceId, consecutiveFailures = 3))
+
+      verify(f.killService).killInstancesAndForget(Seq(unhealthyInstance), KillReason.FailedHealthChecks)
+      verifyNoMoreInteractions(f.driver, f.scheduler)
+    }
 
     "task should not be killed if health check fails and not enough tasks are running" in {
       val f = new Fixture
-      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))))
-
       val instances = Seq.tabulate(8)(_ => f.runningInstance())
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), instances)
       f.tracker.specInstancesSync(any) returns instances
       actor.underlyingActor.checkConsecutiveFailures(f.instance, Health(f.instance.instanceId, consecutiveFailures = 3))
       verify(f.tracker).specInstancesSync(f.appId)
