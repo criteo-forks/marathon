@@ -175,7 +175,8 @@ private[health] class HealthCheckActor(
     val activeInstanceIds: Set[Instance.Id] = instances.withFilter(_.isActive).map(_.instanceId)(collection.breakOut)
     val healthyInstances = healthByInstanceId.filterKeys(activeInstanceIds)
       .filterKeys(instanceId => !killingInFlight(instanceId))
-      .count(_._2.firstSuccess.isDefined)
+      .count{ case (_, health) => health.ready }
+
     val futureHealthyCapacity: Double = (healthyInstances - 1) / app.instances.toDouble
     logger.debug(s"[anti-snowball] checkEnoughInstancesRunning: $futureHealthyCapacity >= ${app.upgradeStrategy.minimumHealthCapacity}")
     futureHealthyCapacity >= app.upgradeStrategy.minimumHealthCapacity

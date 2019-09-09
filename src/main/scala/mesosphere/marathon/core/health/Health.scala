@@ -16,6 +16,9 @@ case class Health(
     lastFailure.fold(true) { successTime > _ }
   }
 
+  /** Returns true if instance became healthy at least once */
+  def ready: Boolean = firstSuccess.isDefined
+
   def update(result: HealthResult): Health = result match {
     case Healthy(_, _, time, _) => copy(
       firstSuccess = firstSuccess.orElse(Some(time)),
