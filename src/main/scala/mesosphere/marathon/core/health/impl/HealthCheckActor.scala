@@ -143,7 +143,7 @@ private[health] class HealthCheckActor(
       if (instance.isUnreachable) {
         logger.info(s"Instance $instanceId on host ${instance.agentInfo.host} is temporarily unreachable. Performing no kill.")
       } else {
-        if (!(checkEnoughInstancesRunning())) {
+        if (antiSnowballEnabled && !(checkEnoughInstancesRunning())) {
           logger.info(s"[anti-snowball] Won't kill $instanceId because too few instances are running")
           return
         }
@@ -167,6 +167,10 @@ private[health] class HealthCheckActor(
         killService.killInstancesAndForget(Seq(instance), KillReason.FailedHealthChecks)
       }
     }
+  }
+
+  def antiSnowballEnabled(): Boolean = {
+    app.upgradeStrategy.minimumHealthCapacity < 1
   }
 
   /** Check if enough active and ready instances will remain if we kill 1 unhealthy instance */
