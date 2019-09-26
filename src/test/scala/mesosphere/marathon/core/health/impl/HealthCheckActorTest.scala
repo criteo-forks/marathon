@@ -24,7 +24,7 @@ class HealthCheckActorTest extends AkkaUnitTest {
 
     val appId = "/test".toPath
     val appVersion = Timestamp(1)
-    val app = AppDefinition(id = appId, instances = 10, upgradeStrategy = UpgradeStrategy(0.9, 1.1))
+    val app = AppDefinition(id = appId, instances = 10, upgradeStrategy = UpgradeStrategy(0.9, 0.1))
     val appWithoutAntiSnowball = AppDefinition(id = appId, instances = 10)
     val appRepository: AppRepository = mock[AppRepository]
     val holder: MarathonSchedulerDriverHolder = new MarathonSchedulerDriverHolder
