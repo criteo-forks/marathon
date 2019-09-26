@@ -25,6 +25,7 @@ class HealthCheckActorTest extends AkkaUnitTest {
     val appId = "/test".toPath
     val appVersion = Timestamp(1)
     val app = AppDefinition(id = appId, instances = 10, upgradeStrategy = UpgradeStrategy(0.9, 1.1))
+    val appWithoutAntiSnowball = AppDefinition(id = appId, instances = 10)
     val appRepository: AppRepository = mock[AppRepository]
     val holder: MarathonSchedulerDriverHolder = new MarathonSchedulerDriverHolder
     val driver = mock[SchedulerDriver]
@@ -48,7 +49,7 @@ class HealthCheckActorTest extends AkkaUnitTest {
       TestInstanceBuilder.newBuilder(appId).addTaskRunning().getInstance()
     }
 
-    def actor(healthCheck: HealthCheck, instances: Seq[Instance]) = TestActorRef[HealthCheckActor](
+    def actor(healthCheck: HealthCheck, instances: Seq[Instance], app: AppDefinition = app) = TestActorRef[HealthCheckActor](
       Props(
         new HealthCheckActor(app, appHealthCheckActor.ref, killService, healthCheck, tracker, system.eventStream) {
           instances.map(instance => {
@@ -141,6 +142,20 @@ class HealthCheckActorTest extends AkkaUnitTest {
       actor.underlyingActor.checkConsecutiveFailures(f.instance, Health(f.instance.instanceId, consecutiveFailures = 3))
       verify(f.tracker).specInstancesSync(f.appId)
       verifyNoMoreInteractions(f.tracker, f.driver, f.scheduler, f.killService)
+    }
+
+    "task should always be killed if application doesn't set upgradeStrategy.minimumHealthCapacity" in {
+      val f = new Fixture
+      val healthyInstances = Seq.tabulate(9)(_ => f.runningInstance())
+      val unhealthyInstance = f.instance
+      val instances = healthyInstances.union(Seq(unhealthyInstance))
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), instances, f.appWithoutAntiSnowball)
+      f.tracker.specInstancesSync(any) returns instances
+
+      actor.underlyingActor.checkConsecutiveFailures(unhealthyInstance, Health(unhealthyInstance.instanceId, consecutiveFailures = 3))
+
+      verify(f.killService).killInstancesAndForget(Seq(unhealthyInstance), KillReason.FailedHealthChecks)
+      verifyNoMoreInteractions(f.driver, f.scheduler)
     }
 
     // FIXME disabling this test for now, as the f.unreachableInstance is broken and does not provide an unreachable instance
