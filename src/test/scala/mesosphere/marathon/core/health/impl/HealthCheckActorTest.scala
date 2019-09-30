@@ -25,7 +25,6 @@ class HealthCheckActorTest extends AkkaUnitTest {
     val appId = "/test".toPath
     val appVersion = Timestamp(1)
     val app = AppDefinition(id = appId, instances = 10, upgradeStrategy = UpgradeStrategy(0.9, 0.1))
-    val appWithoutAntiSnowball = AppDefinition(id = appId, instances = 10)
     val appRepository: AppRepository = mock[AppRepository]
     val holder: MarathonSchedulerDriverHolder = new MarathonSchedulerDriverHolder
     val driver = mock[SchedulerDriver]
@@ -149,7 +148,23 @@ class HealthCheckActorTest extends AkkaUnitTest {
       val healthyInstances = Seq.tabulate(9)(_ => f.runningInstance())
       val unhealthyInstance = f.instance
       val instances = healthyInstances.union(Seq(unhealthyInstance))
-      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), instances, f.appWithoutAntiSnowball)
+      val appWithoutAntiSnowball = AppDefinition(id = f.appId, instances = 10)
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), instances, appWithoutAntiSnowball)
+      f.tracker.specInstancesSync(any) returns instances
+
+      actor.underlyingActor.checkConsecutiveFailures(unhealthyInstance, Health(unhealthyInstance.instanceId, consecutiveFailures = 3))
+
+      verify(f.killService).killInstancesAndForget(Seq(unhealthyInstance), KillReason.FailedHealthChecks)
+      verifyNoMoreInteractions(f.driver, f.scheduler)
+    }
+
+    "task should always be killed if application set only upgradeStrategy.maximumOverCapacity" in {
+      val f = new Fixture
+      val healthyInstances = Seq.tabulate(9)(_ => f.runningInstance())
+      val unhealthyInstance = f.instance
+      val instances = healthyInstances.union(Seq(unhealthyInstance))
+      val appWithoutAntiSnowball = AppDefinition(id = f.appId, instances = 10, upgradeStrategy = UpgradeStrategy(1.0, 0.1))
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), instances, appWithoutAntiSnowball)
       f.tracker.specInstancesSync(any) returns instances
 
       actor.underlyingActor.checkConsecutiveFailures(unhealthyInstance, Health(unhealthyInstance.instanceId, consecutiveFailures = 3))
