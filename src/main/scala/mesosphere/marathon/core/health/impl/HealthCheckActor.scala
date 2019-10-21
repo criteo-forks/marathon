@@ -143,7 +143,7 @@ private[health] class HealthCheckActor(
       if (instance.isUnreachable) {
         logger.info(s"Instance $instanceId on host ${instance.agentInfo.host} is temporarily unreachable. Performing no kill.")
       } else {
-        if (antiSnowballEnabled && !(checkEnoughInstancesRunning())) {
+        if (antiSnowballEnabled && !(checkEnoughInstancesRunning(instance))) {
           logger.info(s"[anti-snowball] Won't kill $instanceId because too few instances are running")
           return
         }
@@ -174,14 +174,16 @@ private[health] class HealthCheckActor(
   }
 
   /** Check if enough active and ready instances will remain if we kill 1 unhealthy instance */
-  def checkEnoughInstancesRunning(): Boolean = {
+  def checkEnoughInstancesRunning(unhealthyInstance: Instance): Boolean = {
     val instances: Seq[Instance] = instanceTracker.specInstancesSync(app.id)
     val activeInstanceIds: Set[Instance.Id] = instances.withFilter(_.isActive).map(_.instanceId)(collection.breakOut)
     val healthyInstances = healthByInstanceId.filterKeys(activeInstanceIds)
       .filterKeys(instanceId => !killingInFlight(instanceId))
+
+    val futureHealthyInstances = healthyInstances.filterKeys(instanceId => unhealthyInstance.instanceId != instanceId)
       .count{ case (_, health) => health.ready }
 
-    val futureHealthyCapacity: Double = (healthyInstances - 1) / app.instances.toDouble
+    val futureHealthyCapacity: Double = futureHealthyInstances / app.instances.toDouble
     logger.debug(s"[anti-snowball] checkEnoughInstancesRunning: $futureHealthyCapacity >= ${app.upgradeStrategy.minimumHealthCapacity}")
     futureHealthyCapacity >= app.upgradeStrategy.minimumHealthCapacity
   }
