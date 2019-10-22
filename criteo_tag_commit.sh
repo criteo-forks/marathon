@@ -21,6 +21,12 @@ generate_criteo_patch()
     fi
 }
 
+function updateVersion() {
+  TAG=$1
+  VERSION=$(echo $TAG | sed 's/^v//')
+  echo "version in ThisBuild := \"$VERSION\"" > version.sbt
+}
+
 if [[ $CURRENT_BRANCH =~ ^criteo\/ ]]
 then
     BASE_VERSION=${CURRENT_BRANCH#*/}
@@ -31,6 +37,9 @@ then
     CRITEO_TAG="v$BASE_VERSION-$CRITEO_PATCH"
     echo "tagging current commit with $CRITEO_TAG"
     git tag $CRITEO_TAG
+    git remote add github https://${GH_TOKEN}@github.com/criteo-forks/marathon > /dev/null 2>&1
+    git push --quiet github --tags
+    updateVersion $CRITEO_TAG
 else
     echo current branch is not a criteo branch
 fi

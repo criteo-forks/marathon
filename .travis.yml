@@ -1,35 +1,36 @@
-
-# any change to this file upstream will conflict when we merge changes
-# deploy section has to remain intact but the rest can be resolved using upstream version
 dist: trusty
 sudo: false
 language: scala
 jdk:
-  - oraclejdk8
+- oraclejdk8
 scala:
-  - 2.12.3
+- 2.12.3
 git:
   depth: false
 cache:
   directories:
-    - $HOME/.sbt
-    - $HOME/.ivy2
+  - "$HOME/.sbt"
+  - "$HOME/.ivy2"
 script:
-  - sbt clean universal:packageZipTarball
-before_script: # the automated download fails sometimes
-    - ./criteo_tag_commit.sh
-    - mkdir -p $HOME/.sbt/launchers/0.13.11/
-    - test -r $HOME/.sbt/launchers/0.13.11/sbt-launch.jar || curl -L -o $HOME/.sbt/launchers/0.13.11/sbt-launch.jar http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.11/sbt-launch.jar
-    - ./patch_version.sh
+- sbt clean universal:packageZipTarball
+before_script:
+- "./criteo_tag_commit.sh"
+- mkdir -p $HOME/.sbt/launchers/0.13.11/
+- test -r $HOME/.sbt/launchers/0.13.11/sbt-launch.jar || curl -L -o $HOME/.sbt/launchers/0.13.11/sbt-launch.jar
+  http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.11/sbt-launch.jar
 before_deploy:
-  - cp target/universal/marathon*.tgz .
+- cp target/universal/marathon*.tgz .
 deploy:
   skip_cleanup: true
   provider: releases
   api_key:
     secure: geOsznYimDVjY54rYF5K205bjt+Q/vZRa7trLq8IKSxf/NiZb4ZiQzPcFfQ4328nA++7+NSW697YwpdJiB4M+21FEcpsB4kLPqrqr92o8u12Zgn5wOJUmNi1wrJyKjO5pScB6qf7Ev8hvpXCvAVRK7tltRfLT2xYQ+JGXYuiForHd4yMbK6WFOvi0zjkUjqosdffAb9SqbmKmI2K0VGP/5q90ZfShmEAk4WYth+dECloVhvBksqcRympL5VijM2cq4MrY/NMDznyX9VvmpQiae+Q1A4fhrUfPTPVmDJStZlIVXwIFNFVZJdXeUZOyafKMOaCU5XB9LFrkX2NlaGjEtWYSBP3uGm0/uApzNCTJ2OodT5WMqeuQTCLbmQbfOfstyeCx/g+YzmVhgK5EiWWPLrfIzucj2P2uEtt0mBlMiw4Ts+Maw5ehMVb+pEMHDVAneMyZw8zyd3EvG6RLnO05kgLmy5gS7ozHhyPFG57xcclKzZ9eV8rHbiCxPrvuAyCwfdM3hp9/A10u+CkQCr43KIPrcTsREbMAkcdmHh5jM0AGw5zcUlGSIZNDQ/soNfLqaBAESpvFW4c4Ak7CIr8HxV1imiBgn3PnwHeWTz4wlcAflxPb7DGbCReyMIOfW+RNzIpCorxfXi5xg29Q7OSRH+rGA3vtcA4IwY8vAPsriU=
   file_glob: true
-  file: "marathon-*.tgz"
+  file: marathon-*.tgz
   on:
     repo: criteo-forks/marathon
-    tags: true
+    all_branches: true
+    condition: "$TRAVIS_BRANCH =~ ^criteo/.*$"
+env:
+  global:
+    secure: Mop5lDubpTWuFqLriTN8YvZr2VxV1RYcLU3lW3/w2oiSbre4hQv18QQFCp5M7SD1R3NZlCwnk4udgTjkgH8aBpxjJDaByucgYwhE2m3ZTF2gY4nfqCmUuIQ04I1JRtVq8gWZoBHA7seUQ6hLGo0/j8YkErGd6VgRyvc13aiCfE6ZVdmxjExn2IbyyaIsETGu9RYCYmdtupEe0ie2+PXCCHeq8MVo+v1fMe8sOoUEHrhSrtr70a+2UxUu5/s9UhB+TLyKuoapwPbsssuiwoaU6uEXrKZ1Jz2h1i9M/k8l9WQl90lhh5/Yw8RvHohYxQE4eyXaQbSlVcdSIz71Nc+28VnBhOmGfkrgvC+t3qBJnSjyoBVFpjJc1xayK/mfiqrb/C7g0AQgvPfkzvfsSi5brC1/lMrmB7Cdxhd+TqSEgHoJCPNgqFxQ2/3xPV4dTdlleK/PMk2LkmNSf2ejQBcL0nvDT2VomfP7j+ZDHgYcwheUgaCOV31KN/v24ca58dnOrFwLpORCV6hUPiAYeew0zUuY5KZNNLQUrW2B9q6Y85Uc1Z/b9xxYNPfA0I6hl4U8ym+k/Px9q+0I7EJR0WAtgpGucyz+d1FfRg+3wSt6E79xmcJ7mNx8CEK4fWHB2IULszrpq/VVOxrfQmlHwbmSqAYwlQemqZh+Q/XWyUxvWJQ=
