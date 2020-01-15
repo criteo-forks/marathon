@@ -17,7 +17,7 @@ before_script:
 - "./criteo_tag_commit.sh"
 - "mkdir -p $HOME/.sbt/launchers/0.13.11/"
 - "test -r $HOME/.sbt/launchers/0.13.11/sbt-launch.jar || curl -L -o $HOME/.sbt/launchers/0.13.11/sbt-launch.jar http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.11/sbt-launch.jar"
-- "sbt --version"
+- sbt about
 before_deploy:
 - cp target/universal/marathon*.tgz .
 deploy:
