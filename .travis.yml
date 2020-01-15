@@ -14,11 +14,11 @@ cache:
 script:
 - sbt clean universal:packageZipTarball
 before_script:
-- sbt --version
 - "./criteo_tag_commit.sh"
 - mkdir -p $HOME/.sbt/launchers/0.13.11/
 - test -r $HOME/.sbt/launchers/0.13.11/sbt-launch.jar || curl -L -o $HOME/.sbt/launchers/0.13.11/sbt-launch.jar
   http://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/0.13.11/sbt-launch.jar
+- sbt --version
 before_deploy:
 - cp target/universal/marathon*.tgz .
 deploy:
