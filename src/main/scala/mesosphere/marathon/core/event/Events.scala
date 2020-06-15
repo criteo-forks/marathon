@@ -4,8 +4,8 @@ package core.event
 import com.fasterxml.jackson.annotation.JsonIgnore
 import mesosphere.marathon.api.v2.json.Formats.eventToJson
 import mesosphere.marathon.core.condition.Condition
-import mesosphere.marathon.core.health.HealthCheck
 import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.health.{Health, HealthCheck}
 import mesosphere.marathon.core.instance.update.InstanceChange
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.state.{AbsolutePathId, AppDefinition, Timestamp}
@@ -224,6 +224,20 @@ case class MesosStatusUpdateEvent(
     version: String,
     eventType: String = "status_update_event",
     timestamp: String = Timestamp.now().toString) extends MarathonEvent
+
+// Event to ask for healthstatus during a deployment
+case class HealthStatusRequest(
+    appId: AbsolutePathId
+) extends MarathonEvent {
+  override val eventType: String = "health_status_request_event"
+  override val timestamp: String = Timestamp.now().toString
+}
+case class HealthStatusResponse(
+    health: Map[Instance.Id, Seq[Health]]
+) extends MarathonEvent {
+  override val eventType: String = "health_status_response_event"
+  override val timestamp: String = Timestamp.now().toString
+}
 
 /** Event indicating a status change for a known instance */
 case class InstanceChanged(
