@@ -18,7 +18,6 @@ addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.2.27")
 addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.3")
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.12")
 addSbtPlugin("com.github.gseitz" % "sbt-protobuf" % "0.6.5")
-addSbtPlugin("au.com.onegeek" %% "sbt-dotenv" % "2.1.146")
 
 // Plugin dependency hell got you down?
 // Run sbt inside of `./project` and inspect dependencies using the coursierDependencyInverseTree command

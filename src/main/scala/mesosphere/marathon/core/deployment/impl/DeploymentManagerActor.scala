@@ -153,11 +153,10 @@ class DeploymentManagerActor(
 
     case HealthStatusRequest(appId) =>
       val s = sender()
-      logger.info(s"========================================================================================")
       healthCheckManager.statuses(appId) onComplete {
         case Success(r) =>
-          s ! HealthStatusResponse(r); logger.info(s"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        case Failure(e) => logger.error(s"Failed!", e)
+          s ! HealthStatusResponse(r)
+        case Failure(e) => logger.error(s"Failed to send health status to TaskReplaceActor!", e)
       }
 
     case CancelDeployment(plan) =>

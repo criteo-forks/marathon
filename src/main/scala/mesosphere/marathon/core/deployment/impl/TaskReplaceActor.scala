@@ -68,7 +68,7 @@ class TaskReplaceActor(
     // FIXME: Or use state.healthy.getOrElse
     val i_health = healths.find(_._1 == instance.instanceId)
     if (instance.hasConfiguredHealthChecks && i_health.isDefined) { // Has healthchecks
-      if (_isHealthy(i_health.get._2) == true){
+      if (_isHealthy(i_health.get._2) == true) {
         logger.info(s"Checking ${instance.instanceId}: has healcheck and is healthy")
         return true
       } else {
@@ -97,7 +97,7 @@ class TaskReplaceActor(
   }
 
   def step(health: Map[Instance.Id, Seq[Health]]): Unit = {
-    logger.info(s"/////////////----------DEPLOYMENT STEP FOR ${pathId} ----------------\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
+    logger.info("---=== DEPLOYMENT STEP FOR ${pathId} ===---yy")
     val current_instances = instanceTracker.specInstancesSync(pathId)
     var new_running = 0
     var old_running = 0
@@ -247,13 +247,16 @@ object TaskReplaceActor extends StrictLogging {
   /** Encapsulates the logic how to get a Restart going */
   private[impl] case class RestartStrategy(nrToKillImmediately: Int, nrToStartImmediately: Int)
 
-  private[impl] def computeRestartStrategy(runSpec: RunSpec, nr: Int, or: Int, nf: Int, of: Int): RestartStrategy = {
+  private[impl] def computeRestartStrategy(runSpec: RunSpec, new_running: Int, old_running: Int, new_failing: Int, old_failing: Int): RestartStrategy = {
+    val consideredHealthyInstancesCount = new_running + old_running
+    val consideredUnhealthyInstancesCount = new_failing + old_failing
+    val totalInstancesRunning = consideredHealthyInstancesCount + consideredUnhealthyInstancesCount
+
     // in addition to a spec which passed validation, we require:
     require(runSpec.instances > 0, s"target instance number must be > 0 but is ${runSpec.instances}")
-    require(nr + or + nf + of >= 0, "current instances count must be >=0")
+    require(totalInstancesRunning >= 0, "current instances count must be >=0")
 
     // Old and new instances that have the Goal.Running & are considered healthy
-    val consideredHealthyInstancesCount = nr + or
     require(consideredHealthyInstancesCount >= 0, s"running instances count must be >=0 but is $consideredHealthyInstancesCount")
 
     val minHealthy = (runSpec.instances * runSpec.upgradeStrategy.minimumHealthCapacity).ceil.toInt
@@ -277,9 +280,10 @@ object TaskReplaceActor extends StrictLogging {
 
     // following condition addresses cases where we have extra-instances due to previous deployment adding extra-instances
     // and deployment is force-updated
-    if (runSpec.instances < nr + or + of) {
+    if (runSpec.instances < new_running + old_running + old_failing) {
       // NOTE: We don't take into account the new app that are failing to count this
-      nrToKillImmediately = math.max(nr + or + of - runSpec.instances, nrToKillImmediately)
+      // This is to avoid killing apps started but not ready
+      nrToKillImmediately = math.max(new_running + old_running + old_failing - runSpec.instances, nrToKillImmediately)
       logger.info(s"runSpec.instances < currentInstances: Allowing killing all $nrToKillImmediately extra-instances")
     }
 
@@ -292,8 +296,8 @@ object TaskReplaceActor extends StrictLogging {
     def canStartNewInstances: Boolean = minHealthy < maxCapacity || consideredHealthyInstancesCount - nrToKillImmediately < maxCapacity
     assume(canStartNewInstances, "must be able to start new instances")
 
-    val leftCapacity = math.max(0, maxCapacity - or - nr - nf)
-    val instancesNotStartedYet = math.max(0, runSpec.instances - nr - nf)
+    val leftCapacity = math.max(0, maxCapacity - totalInstancesRunning)
+    val instancesNotStartedYet = math.max(0, runSpec.instances - new_running - new_failing)
     val nrToStartImmediately = math.min(instancesNotStartedYet, leftCapacity)
     RestartStrategy(nrToKillImmediately = nrToKillImmediately, nrToStartImmediately = nrToStartImmediately)
   }
