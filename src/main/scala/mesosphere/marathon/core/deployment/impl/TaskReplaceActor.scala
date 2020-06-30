@@ -29,10 +29,11 @@ class TaskReplaceActor(
     val eventBus: EventStream,
     val readinessCheckExecutor: ReadinessCheckExecutor,
     val runSpec: RunSpec,
-    promise: Promise[Unit]) extends Actor with Stash with ReadinessBehavior with StrictLogging {
+    promise: Promise[Unit]) extends Actor with StrictLogging {
   import TaskReplaceActor._
 
   def deploymentId = status.plan.id
+  def pathId = runSpec.id
 
   // instance to kill sorted by decreasing order of priority
   // we always prefer to kill unhealthy tasks first
@@ -139,28 +140,7 @@ class TaskReplaceActor(
     super.postStop()
   }
 
-  override def receive: Receive = initializing
-
-  private def initializing: Receive = {
-
-    case HealthStatusResponse(health) =>
-      step(health)
-
-    case Done =>
-      context.become(initialized)
-      unstashAll()
-
-    case Status.Failure(cause) =>
-      // escalate this failure
-      throw new IllegalStateException("while loading tasks", cause)
-
-    case stashMe: AnyRef =>
-      stash()
-  }
-
-  private def initialized: Receive = readinessBehavior orElse replaceBehavior
-
-  def replaceBehavior: Receive = {
+  override def receive: Receive = {
 
     case HealthStatusResponse(health) =>
       step(health)
@@ -176,8 +156,6 @@ class TaskReplaceActor(
     case CheckFinished => // Notging to do, this is done in step()
 
   }
-
-  override def instanceConditionChanged(instanceId: Instance.Id): Unit = { ; }
 
   def launchInstances(instancesToStartNow: Int): Future[Done] = {
     if (instancesToStartNow > 0) {
@@ -218,7 +196,7 @@ class TaskReplaceActor(
       promise.trySuccess(())
       context.stop(self)
     } else {
-      logger.info(s"Deployment $deploymentId: For run spec: [${runSpec.id}] there are [${healthyInstances.size}] healthy and " +
+      logger.info(s"Deployment $deploymentId: For run spec: [${runSpec.id}] there are " +
         s"[${nr_new}] ready new instances and " +
         s"[${nr_old}] old instances. " +
         s"Target count is ${runSpec.instances}.")
