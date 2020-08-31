@@ -124,7 +124,7 @@ private[health] class HealthCheckActor(
           )
         )
         killingInFlight = killingInFlight + instanceId
-        logger.debug(s"[anti-snowball] killing ${instanceId}, currently ${killingInFlight.size} instances killingInFlight")
+        logger.info(s"[anti-snowball] killing ${instanceId}, currently ${killingInFlight.size} instances killingInFlight")
         killService.killInstancesAndForget(Seq(instance), KillReason.FailedHealthChecks)
       }
     }
@@ -140,6 +140,8 @@ private[health] class HealthCheckActor(
     val activeInstanceIds: Set[Instance.Id] = instances.withFilter(_.isActive).map(_.instanceId)(collection.breakOut)
     val healthyInstances = healthByInstanceId.filterKeys(activeInstanceIds)
       .filterKeys(instanceId => !killingInFlight(instanceId))
+
+    logger.info(s"[anti-snowball] currently ${killingInFlight.size} instances killingInFlight")
 
     val futureHealthyInstances = healthyInstances.filterKeys(instanceId => unhealthyInstance.instanceId != instanceId)
       .count{ case (_, health) => health.ready }
