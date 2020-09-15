@@ -78,7 +78,7 @@ case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status)
     // state should already be distinct enough.
     // related to https://github.com/mesosphere/marathon/pull/4531
     if (this.isTerminal) {
-      logger.warn(s"received update($newStatus, $newMesosStatus, $now) for terminal $taskId, ignoring")
+      logger.debug(s"received update($newStatus, $newMesosStatus, $now) for terminal $taskId, ignoring")
       return TaskUpdateEffect.Noop
     }
 

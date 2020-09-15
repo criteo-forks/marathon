@@ -263,7 +263,8 @@ private class TaskLauncherActor(
           offerOperationAcceptTimeout.get(instanceId).foreach(_.cancel())
           offerOperationAcceptTimeout -= instanceId
         }
-        logger.info(s"Synced single $instanceId from InstanceTracker")
+
+        logger.info(s"Synced single $instanceId from InstanceTracker: ${instance.runSpec.id}")
 
         // Request delay for new run spec config.
         if (!launchAllowedAt.contains(instance.runSpec.configRef)) {

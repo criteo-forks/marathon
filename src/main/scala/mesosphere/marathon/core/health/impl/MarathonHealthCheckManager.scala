@@ -181,7 +181,7 @@ class MarathonHealthCheckManager(
 
     def reconcileApp(app: AppDefinition, instances: Seq[Instance]): Future[Done] = {
       val appId = app.id
-      logger.info(s"reconcile $appId with latest version ${app.version} for instances: $instances")
+      logger.info(s"reconcile $appId with latest version ${app.version} for ${instances.length} instances")
 
       val instancesByVersion = instances.groupBy(_.runSpecVersion)
 
