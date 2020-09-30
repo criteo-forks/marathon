@@ -41,6 +41,7 @@ class HealthCheckActorTest extends AkkaUnitTest {
     val task: Task = instance.appTask
 
     val unreachableInstance = TestInstanceBuilder.newBuilder(appId).addTaskUnreachable().getInstance()
+    val unscheduledInstance = TestInstanceBuilder.newBuilder(appId).getInstance()
     val lostInstance = TestInstanceBuilder.newBuilder(appId).addTaskLost().getInstance()
 
     val healthCheckWorkerHub: Sink[(AppDefinition, Instance, MarathonHealthCheck, ActorRef), NotUsed] =
@@ -132,6 +133,17 @@ class HealthCheckActorTest extends AkkaUnitTest {
 
       verify(f.instanceTracker).specInstancesSync(f.appId)
       verifyNoMoreInteractions(f.scheduler, f.killService)
+    }
+
+    "unscheduled instance should not make actor crash" in {
+      val f = new Fixture
+      val healthyInstances = Seq.tabulate(9)(_ => f.runningInstance())
+      val instances = healthyInstances.union(Seq(f.unscheduledInstance))
+      val actor = f.actor(MarathonHttpHealthCheck(maxConsecutiveFailures = 3, portIndex = Some(PortReference(0))), healthyInstances)
+
+      noException shouldBe thrownBy {
+        actor.underlyingActor.purgeStatusOfDoneInstances(instances)
+      }
     }
 
     "task should always be killed if application doesn't set upgradeStrategy.minimumHealthCapacity" in {
