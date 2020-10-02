@@ -74,6 +74,12 @@ class TaskReplaceActor(
     deploymentManagerActor ! HealthStatusRequest(pathId)
   }
 
+  // sort instances with instances having oldest tasks first. Instances with no task are at the end.
+  def sortByOldestFirst(instances: mutable.Queue[Instance]): mutable.Queue[Instance] = {
+    val instancesByIncarnation = instances.partition(_.tasksMap.size != 0)
+    instancesByIncarnation._1.sortBy(_.appTask.status.stagedAt) ++ instancesByIncarnation._2
+  }
+
   def step(health: Map[Instance.Id, Seq[Health]]): Unit = {
     logger.debug(s"---=== DEPLOYMENT STEP FOR ${pathId} ===---")
     val current_instances = instanceTracker.specInstancesSync(pathId).partition(_.runSpecVersion == runSpec.version)
@@ -81,8 +87,12 @@ class TaskReplaceActor(
     val new_instances = current_instances._1.partition(isHealthy(_, health))
     val old_instances = current_instances._2.partition(isHealthy(_, health))
 
+    // make sure we kill in order:
+    // - instances with unhealthy tasks
+    // - instances with oldest tasks
+    // - other instances
     val toKill = old_instances._2.to[mutable.Queue]
-    toKill ++= old_instances._1
+    toKill ++= sortByOldestFirst(old_instances._1.to[mutable.Queue])
 
     val state = new TransitionState(new_instances._1.size, new_instances._2.size, old_instances._1.size, old_instances._2.size)
 
