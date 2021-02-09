@@ -5,7 +5,7 @@ import akka.actor.{Actor, Props}
 import akka.event.EventStream
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.event.InstanceHealthChanged
-import mesosphere.marathon.core.health.impl.AppHealthCheckActor.{AddHealthCheck, AppHealthCheckProxy, ApplicationKey, HealthCheckStatusChanged, PurgeHealthCheckStatuses, RemoveHealthCheck}
+import mesosphere.marathon.core.health.impl.AppHealthCheckActor.{AddHealthCheck, AppHealthCheckProxy, ApplicationKey, HealthCheckStatesRequest, HealthCheckStatesResponse, HealthCheckStatusChanged, PurgeHealthCheckStatuses, RemoveHealthCheck}
 import mesosphere.marathon.core.health.{Health, HealthCheck}
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.state.{AbsolutePathId, Timestamp}
