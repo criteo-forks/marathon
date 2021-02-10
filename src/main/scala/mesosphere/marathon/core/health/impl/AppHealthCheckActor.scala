@@ -31,7 +31,7 @@ object AppHealthCheckActor {
 
   case class HealthCheckStatesRequest(appId: AbsolutePathId)
 
-  case class HealthCheckStatesResponse(res: mutable.Map[InstanceKey, Map[HealthCheck, Option[Health]]])
+  case class HealthCheckStatesResponse(res: Map[InstanceKey, Map[HealthCheck, Option[Health]]])
 
   /**
     * Actor command adding an health check definition for a given application so that the actor knows which health check
@@ -87,8 +87,8 @@ object AppHealthCheckActor {
     private[impl] val healthCheckStates: mutable.Map[InstanceKey, Map[HealthCheck, Option[Health]]] =
       mutable.Map.empty
 
-    def getHealthCheckStates(appId: AbsolutePathId): mutable.Map[InstanceKey, Map[HealthCheck, Option[Health]]] = {
-      healthCheckStates.filterKeys(instanceKey => instanceKey.applicationKey.appId == appId)
+    def getHealthCheckStates(appId: AbsolutePathId): Map[InstanceKey, Map[HealthCheck, Option[Health]]] = {
+      healthCheckStates.filterKeys(instanceKey => instanceKey.applicationKey.appId == appId).toMap
     }
 
     /**
