@@ -10,7 +10,7 @@ import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.task._
 import mesosphere.marathon.core.event._
 import mesosphere.marathon.core.health._
-import mesosphere.marathon.core.health.impl.AppHealthCheckActor.{ApplicationKey, HealthCheckStatusChanged, InstanceKey, PurgeHealthCheckStatuses}
+import mesosphere.marathon.core.health.impl.AppHealthCheckActor.{ApplicationKey, HealthCheckStatesRequest, HealthCheckStatesResponse, HealthCheckStatusChanged, InstanceKey, PurgeHealthCheckStatuses}
 import mesosphere.marathon.core.health.impl.HealthCheckActor._
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.task.termination.{KillReason, KillService}
@@ -113,45 +113,69 @@ private[health] class HealthCheckActor(
         logger.info(s"Instance $instanceId on host ${instance.hostname} is temporarily unreachable. Performing no kill.")
       } else {
         require(instance.tasksMap.size == 1, "Unexpected pod instance in HealthCheckActor")
-        if (antiSnowballEnabled && !(checkEnoughInstancesRunning(instance))) {
-          logger.info(s"[anti-snowball] app ${app.id} version ${app.version} Won't kill $instanceId because too few instances are running")
-          return
-        }
-
         if (healthCheckShieldApi.isShielded(instance.appTask.taskId)) {
           logger.info(s"[health-check-shield] app ${app.id} version ${app.version}. Won't kill $instanceId because the shield is enabled")
           return
         }
 
-        logger.info(s"Send kill request for $instanceId on host ${instance.hostname.getOrElse("unknown")} to driver")
-        val taskId = instance.appTask.taskId
-        eventBus.publish(
-          UnhealthyInstanceKillEvent(
-            appId = instance.runSpecId,
-            taskId = taskId,
-            instanceId = instanceId,
-            version = app.version,
-            reason = health.lastFailureCause.getOrElse("unknown"),
-            host = instance.hostname.getOrElse("unknown"),
-            slaveId = instance.agentInfo.flatMap(_.agentId),
-            timestamp = health.lastFailure.getOrElse(Timestamp.now()).toString
-          )
-        )
-        killingInFlight = killingInFlight + taskId
-        logger.info(s"[anti-snowball] app ${app.id} version ${app.version} killing ${instanceId}, currently ${killingInFlight.size} instances killingInFlight")
-        killService.killInstancesAndForget(Seq(instance), KillReason.FailedHealthChecks)
+        val activeTaskIds: Set[Task.Id] = getActiveTaskIds()
+
+        if (antiSnowballEnabled && needInfoFromAppHealthCheckActor(activeTaskIds)) {
+          logger.debug(s"[anti-snowball] app ${app.id} version ${app.version} Requesting info from AppHealthCheckActor regarding $instanceId")
+          appHealthCheckActor ! HealthCheckStatesRequest(instance, health, app.id)
+          return
+        }
+
+        if (antiSnowballEnabled && !(checkEnoughInstancesRunning(instance, activeTaskIds))) {
+          logger.info(s"[anti-snowball] app ${app.id} version ${app.version} Won't kill $instanceId because too few instances are running")
+          return
+        }
+
+        sendKillRequest(instance, health)
       }
     }
+  }
+
+  def sendKillRequest(instance: Instance, health: Health): Unit = {
+    val instanceId = instance.instanceId
+    logger.info(s"Send kill request for $instanceId on host ${instance.hostname.getOrElse("unknown")} to driver")
+    val taskId = instance.appTask.taskId
+    eventBus.publish(
+      UnhealthyInstanceKillEvent(
+        appId = instance.runSpecId,
+        taskId = taskId,
+        instanceId = instanceId,
+        version = app.version,
+        reason = health.lastFailureCause.getOrElse("unknown"),
+        host = instance.hostname.getOrElse("unknown"),
+        slaveId = instance.agentInfo.flatMap(_.agentId),
+        timestamp = health.lastFailure.getOrElse(Timestamp.now()).toString
+      )
+    )
+    killingInFlight = killingInFlight + taskId
+    logger.info(s"[anti-snowball] app ${app.id} version ${app.version} killing ${instanceId}, currently ${killingInFlight.size} instances killingInFlight")
+    killService.killInstancesAndForget(Seq(instance), KillReason.FailedHealthChecks)
   }
 
   def antiSnowballEnabled(): Boolean = {
     app.upgradeStrategy.minimumHealthCapacity < 1
   }
 
-  /** Check if enough active and ready instances will remain if we kill 1 unhealthy instance */
-  def checkEnoughInstancesRunning(unhealthyInstance: Instance): Boolean = {
+  def getActiveTaskIds(): Set[Task.Id] = {
     val instances: Seq[Instance] = instanceTracker.specInstancesSync(app.id)
-    val activeTaskIds: Set[Task.Id] = getActiveTaskForInstances(instances)
+    getActiveTaskForInstances(instances)
+  }
+
+  /** Check if HealthCheckActor manages enough instances to decide whether it can kill one or if it needs info from AppHealthCheckActor */
+  def needInfoFromAppHealthCheckActor(activeTaskIds: Set[Task.Id]): Boolean = {
+    val managedInstances = healthByTaskId.filterKeys(activeTaskIds)
+    val enoughInstancesRunning = activeTaskIds.size >= app.instances * app.upgradeStrategy.minimumHealthCapacity
+    val enoughManagedInstances = managedInstances.size >= 1 + (activeTaskIds.size * app.upgradeStrategy.minimumHealthCapacity).toInt
+    enoughInstancesRunning && !enoughManagedInstances
+  }
+
+  /** Check if enough active and ready instances will remain if we kill 1 unhealthy instance */
+  def checkEnoughInstancesRunning(unhealthyInstance: Instance, activeTaskIds: Set[Task.Id]): Boolean = {
     val healthyInstances = healthByTaskId.filterKeys(activeTaskIds)
       .filterKeys(taskId => !killingInFlight(taskId))
 
@@ -237,6 +261,17 @@ private[health] class HealthCheckActor(
     }
   }
 
+  def handleHealthCheckStatesResponse(instance: Instance, health: Health, healths: Map[Instance.Id, Option[Boolean]]): Unit = {
+    val healthyInstances = healths.count { case(_, health) => health.isDefined && health.get }
+
+    if(healthyInstances / app.instances.toDouble >= app.upgradeStrategy.minimumHealthCapacity) {
+      // TODO check killingInFlight?
+      sendKillRequest(instance, health)
+    } else {
+      logger.info(s"[anti-snowball] app ${app.id} version ${app.version} Won't kill ${instance.instanceId} because too few instances are running")
+    }
+  }
+
   def receive: Receive = {
     case GetInstanceHealth(instanceId) =>
       sender() ! healthByTaskId.find(_._1.instanceId == instanceId)
@@ -259,6 +294,9 @@ private[health] class HealthCheckActor(
         throw new RuntimeException("HealthCheckActor stream stopped, restarting")
       else
         logger.info("Stream pertaining to previous instance of actor stopped; ignoring.")
+
+    case HealthCheckStatesResponse(instance, health, healths) =>
+      handleHealthCheckStatesResponse(instance, health, healths)
   }
 }
 

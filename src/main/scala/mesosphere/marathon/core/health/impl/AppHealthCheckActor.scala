@@ -29,9 +29,9 @@ object AppHealthCheckActor {
 
   def props(eventBus: EventStream): Props = Props(new AppHealthCheckActor(eventBus))
 
-  case class HealthCheckStatesRequest(appId: AbsolutePathId)
+  case class HealthCheckStatesRequest(instance: Instance, health: Health, appId: AbsolutePathId)
 
-  case class HealthCheckStatesResponse(res: Map[InstanceKey, Map[HealthCheck, Option[Health]]])
+  case class HealthCheckStatesResponse(instance: Instance, health: Health, healths: Map[Instance.Id, Option[Boolean]])
 
   /**
     * Actor command adding an health check definition for a given application so that the actor knows which health check
@@ -87,8 +87,8 @@ object AppHealthCheckActor {
     private[impl] val healthCheckStates: mutable.Map[InstanceKey, Map[HealthCheck, Option[Health]]] =
       mutable.Map.empty
 
-    def getHealthCheckStates(appId: AbsolutePathId): Map[InstanceKey, Map[HealthCheck, Option[Health]]] = {
-      healthCheckStates.filterKeys(instanceKey => instanceKey.applicationKey.appId == appId).toMap
+    def getHealthCheckStates(appId: AbsolutePathId): Map[Instance.Id, Option[Boolean]] = {
+      healthCheckStates.filterKeys(instanceKey => instanceKey.applicationKey.appId == appId).map { case (instanceKey, instanceHealthResults) => (instanceKey.instanceId, computeGlobalHealth(instanceHealthResults)) }.toMap
     }
 
     /**
@@ -226,10 +226,10 @@ class AppHealthCheckActor(eventBus: EventStream) extends Actor with StrictLoggin
   }
 
   override def receive: Receive = {
-    case HealthCheckStatesRequest(appId) =>
+    case HealthCheckStatesRequest(instance, health, appId) =>
       val s = sender()
-      val res = proxy.getHealthCheckStates(appId)
-      s ! HealthCheckStatesResponse(res)
+      val healths = proxy.getHealthCheckStates(appId)
+      s ! HealthCheckStatesResponse(instance, health, healths)
 
     case AddHealthCheck(appKey, healthCheck) =>
       proxy.addHealthCheck(appKey, healthCheck)
