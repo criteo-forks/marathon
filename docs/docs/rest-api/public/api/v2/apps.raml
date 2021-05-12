@@ -585,3 +585,25 @@
                 application/json:
                   example: |
                     { "message": "App '/not_existent' does not exist" }
+    ###
+    # Criteo specific: give anti-snowball status
+    #
+    /antisnowball:
+      get:
+        description: Give antisnowball status of the application with id `app_id`
+        is: [ secured ]
+        responses:
+          200:
+            description: The status of the application (whether antisnowball is activated or not)
+            body:
+              application/json:
+                type: antiSnowball.AntiSnowballStatus
+                example: |
+                  { "active": true }
+          404:
+            description: No task found with this `app_id`.
+            body:
+              application/json:
+                type: error.Error
+                example: |
+                  { "message": "App '/not_existent' does not exist" }

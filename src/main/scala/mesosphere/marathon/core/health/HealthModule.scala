@@ -9,7 +9,7 @@ import mesosphere.marathon.core.health.impl.MarathonHealthCheckManager
 import mesosphere.marathon.core.task.termination.KillService
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.storage.repository.HealthCheckShieldRepository
-import mesosphere.marathon.core.health.impl.{HealthCheckShieldApiImpl, HealthCheckShieldActor}
+import mesosphere.marathon.core.health.impl.{HealthCheckShieldApiImpl, HealthCheckShieldActor, AntiSnowballApiImpl}
 import mesosphere.marathon.core.leadership.LeadershipModule
 
 import scala.concurrent.ExecutionContext
@@ -27,11 +27,13 @@ class HealthModule(
     healthCheckShieldRepository: HealthCheckShieldRepository,
     leadershipModule: LeadershipModule)(implicit mat: ActorMaterializer, ec: ExecutionContext) {
   private val healthCheckShieldApiImpl = new HealthCheckShieldApiImpl(healthCheckShieldRepository, conf)
+  private val antiSnowballApiImpl = new AntiSnowballApiImpl()
   private val healthCheckShieldActor = leadershipModule.startWhenLeader(
     HealthCheckShieldActor.props(healthCheckShieldApiImpl, conf),
     "HealthCheckShieldActor")
 
   lazy val healthCheckShieldApi: HealthCheckShieldApi = healthCheckShieldApiImpl
+  lazy val antiSnowballApi: AntiSnowballApi = antiSnowballApiImpl
   lazy val healthCheckManager = new MarathonHealthCheckManager(
     actorSystem,
     killService,
@@ -39,5 +41,6 @@ class HealthModule(
     instanceTracker,
     groupManager,
     conf,
-    healthCheckShieldApi)
+    healthCheckShieldApi,
+    antiSnowballApi)
 }

@@ -2,7 +2,6 @@ package mesosphere.marathon
 package core
 
 import java.time.Clock
-
 import javax.inject.Named
 import akka.actor.{ActorRef, Props}
 import akka.stream.Materializer
@@ -14,7 +13,7 @@ import mesosphere.marathon.core.appinfo.{AppInfoModule, AppInfoService, GroupInf
 import mesosphere.marathon.core.deployment.DeploymentManager
 import mesosphere.marathon.core.election.ElectionService
 import mesosphere.marathon.core.group.GroupManager
-import mesosphere.marathon.core.health.{HealthCheckManager, HealthCheckShieldApi}
+import mesosphere.marathon.core.health.{AntiSnowballApi, HealthCheckManager, HealthCheckShieldApi}
 import mesosphere.marathon.core.heartbeat.MesosHeartbeatMonitor
 import mesosphere.marathon.core.instance.update.InstanceChangeHandler
 import mesosphere.marathon.core.launcher.OfferProcessor
@@ -247,6 +246,9 @@ class CoreGuiceModule(cliConf: MarathonConf) extends AbstractModule {
 
   @Provides @Singleton
   def healthCheckShieldApi(coreModule: CoreModule): HealthCheckShieldApi = coreModule.healthModule.healthCheckShieldApi
+
+  @Provides @Singleton
+  def antiSnowballApi(coreModule: CoreModule): AntiSnowballApi = coreModule.healthModule.antiSnowballApi
 
   @Provides
   @Singleton

@@ -3,9 +3,9 @@ package api.v2
 
 import java.net.URI
 import java.time.Clock
-
 import akka.event.EventStream
 import com.wix.accord.Validator
+
 import javax.inject.Inject
 import javax.servlet.http.HttpServletRequest
 import javax.ws.rs._
@@ -17,6 +17,7 @@ import mesosphere.marathon.api.{AuthResource, PATCH, RestResource}
 import mesosphere.marathon.core.appinfo._
 import mesosphere.marathon.core.event.ApiPostEvent
 import mesosphere.marathon.core.group.GroupManager
+import mesosphere.marathon.core.health.AntiSnowballApi
 import mesosphere.marathon.core.plugin.PluginManager
 import mesosphere.marathon.plugin.auth._
 import mesosphere.marathon.raml.Raml
@@ -41,7 +42,8 @@ class AppsResource @Inject() (
     appInfoService: AppInfoService,
     val config: MarathonConf,
     groupManager: GroupManager,
-    pluginManager: PluginManager)(implicit
+    pluginManager: PluginManager,
+    antiSnowball: AntiSnowballApi)(implicit
     val authenticator: Authenticator,
     val authorizer: Authorizer,
     val executionContext: ExecutionContext) extends RestResource with AuthResource {
@@ -326,6 +328,9 @@ class AppsResource @Inject() (
 
   @Path("{appId:.+}/versions")
   def appVersionsResource(): AppVersionsResource = new AppVersionsResource(service, groupManager, authenticator,
+    authorizer, config)
+  @Path("{appId:.+}/antisnowball")
+  def appAntiSnowballResource(): AppAntiSnowballResource = new AppAntiSnowballResource(antiSnowball, groupManager, authenticator,
     authorizer, config)
 
   @POST

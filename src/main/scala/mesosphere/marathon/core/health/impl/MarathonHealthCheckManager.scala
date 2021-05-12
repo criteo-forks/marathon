@@ -37,7 +37,8 @@ class MarathonHealthCheckManager(
     instanceTracker: InstanceTracker,
     groupManager: GroupManager,
     conf: MarathonConf,
-    healthCheckShieldApi: HealthCheckShieldApi)(implicit mat: ActorMaterializer) extends HealthCheckManager with StrictLogging {
+    healthCheckShieldApi: HealthCheckShieldApi,
+    antiSnowballApi: AntiSnowballApi)(implicit mat: ActorMaterializer) extends HealthCheckManager with StrictLogging {
 
   protected[this] case class ActiveHealthCheck(
       healthCheck: HealthCheck,
@@ -97,7 +98,7 @@ class MarathonHealthCheckManager(
         logger.info(s"Adding health check for app [${app.id}] and version [${app.version}]: [$healthCheck]")
 
         val ref = actorRefFactory.actorOf(
-          HealthCheckActor.props(app, appHealthChecksActor, killService, healthCheck, instanceTracker, eventBus, healthCheckWorkerHub, healthCheckShieldApi))
+          HealthCheckActor.props(app, appHealthChecksActor, killService, healthCheck, instanceTracker, eventBus, healthCheckWorkerHub, healthCheckShieldApi, antiSnowballApi))
         val newHealthChecksForApp =
           healthChecksForApp + ActiveHealthCheck(healthCheck, ref)
 

@@ -1,0 +1,12 @@
+#%RAML 1.0 Library
+uses:
+  strings: stringTypes.raml
+  numbers: numberTypes.raml
+types:
+  AntiSnowballStatus:
+    type: object
+    properties:
+      active:
+        type: boolean
+        description: |
+          true if the antisnowball is active at the moment

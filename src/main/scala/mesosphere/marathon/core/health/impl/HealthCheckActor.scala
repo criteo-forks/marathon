@@ -30,7 +30,8 @@ private[health] class HealthCheckActor(
     instanceTracker: InstanceTracker,
     eventBus: EventStream,
     healthCheckHub: Sink[(AppDefinition, Instance, MarathonHealthCheck, ActorRef), NotUsed],
-    healthCheckShieldApi: HealthCheckShieldApi)
+    healthCheckShieldApi: HealthCheckShieldApi,
+    antiSnowballApi: AntiSnowballApi)
   extends Actor with StrictLogging {
 
   implicit val mat = ActorMaterializer()
@@ -128,8 +129,10 @@ private[health] class HealthCheckActor(
 
         if (antiSnowballEnabled && !(checkEnoughInstancesRunning(instance, activeTaskIds))) {
           logger.info(s"[anti-snowball] app ${app.id} version ${app.version} Won't kill $instanceId because too few instances are running")
+          antiSnowballApi.setActive(app.id, true)
           return
         }
+        antiSnowballApi.setActive(app.id, false)
 
         sendKillRequest(instance, health)
       }
@@ -309,7 +312,8 @@ object HealthCheckActor {
     instanceTracker: InstanceTracker,
     eventBus: EventStream,
     healthCheckHub: Sink[(AppDefinition, Instance, MarathonHealthCheck, ActorRef), NotUsed],
-    healthCheckShieldApi: HealthCheckShieldApi): Props = {
+    healthCheckShieldApi: HealthCheckShieldApi,
+    antiSnowballApi: AntiSnowballApi): Props = {
 
     Props(new HealthCheckActor(
       app,
@@ -319,7 +323,8 @@ object HealthCheckActor {
       instanceTracker,
       eventBus,
       healthCheckHub,
-      healthCheckShieldApi))
+      healthCheckShieldApi,
+      antiSnowballApi))
   }
 
   // self-sent every healthCheck.intervalSeconds

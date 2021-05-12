@@ -2,7 +2,6 @@ package mesosphere.marathon
 package api.v2
 
 import java.util
-
 import javax.ws.rs.core.Response
 import akka.Done
 import mesosphere.AkkaUnitTest
@@ -12,6 +11,7 @@ import mesosphere.marathon.core.appinfo.AppInfo.Embed
 import mesosphere.marathon.core.appinfo._
 import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.group.GroupManager
+import mesosphere.marathon.core.health.AntiSnowballApi
 import mesosphere.marathon.core.plugin.PluginManager
 import mesosphere.marathon.core.pod.ContainerNetwork
 import mesosphere.marathon.plugin.auth.{Authenticator, Authorizer}
@@ -38,7 +38,8 @@ class AppsResourceTest extends AkkaUnitTest with GroupCreation with JerseyTest {
       service: MarathonSchedulerService = mock[MarathonSchedulerService],
       appInfoService: AppInfoService = mock[AppInfoService],
       configArgs: Seq[String] = Seq("--enable_features", "external_volumes"),
-      groupManager: GroupManager = mock[GroupManager]) {
+      groupManager: GroupManager = mock[GroupManager],
+      antiSnowballApi: AntiSnowballApi = mock[AntiSnowballApi]) {
     val config: AllConf = AllConf.withTestConfig(configArgs: _*)
     val appsResource: AppsResource = new AppsResource(
       clock,
@@ -48,7 +49,8 @@ class AppsResourceTest extends AkkaUnitTest with GroupCreation with JerseyTest {
       appInfoService,
       config,
       groupManager,
-      PluginManager.None
+      PluginManager.None,
+      antiSnowballApi
     )(auth.auth, auth.auth, ctx)
 
     implicit val authenticator: Authenticator = auth.auth
@@ -167,7 +169,8 @@ class AppsResourceTest extends AkkaUnitTest with GroupCreation with JerseyTest {
       auth: TestAuthFixture = new TestAuthFixture,
       appTaskResource: AppTasksResource = mock[AppTasksResource],
       appInfoService: AppInfoService = mock[AppInfoService],
-      configArgs: Seq[String] = Seq("--enable_features", "external_volumes")) {
+      configArgs: Seq[String] = Seq("--enable_features", "external_volumes"),
+      antiSnowball: AntiSnowballApi = mock[AntiSnowballApi]) {
 
     val config: AllConf = AllConf.withTestConfig(configArgs: _*)
     val groupManagerFixture: TestGroupManagerFixture = new TestGroupManagerFixture(
@@ -184,7 +187,8 @@ class AppsResourceTest extends AkkaUnitTest with GroupCreation with JerseyTest {
       appInfoService,
       config,
       groupManager,
-      PluginManager.None
+      PluginManager.None,
+      antiSnowball
     )(auth.auth, auth.auth, ctx)
   }
 
