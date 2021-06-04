@@ -49,7 +49,7 @@ trait OfferMatcherManagerConfig extends ScallopConf {
     default = Some(1024),
     hidden = true
   )
-  
+
   /**
     * This parameter controlls the order of processing for offers present in the offers queue
     * by setting this parameter to true, the unprocessed offers will be processed in FIFO order.
