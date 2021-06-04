@@ -110,10 +110,20 @@ private[impl] class OfferMatcherManagerActor private (
 
   var timerTick: Option[Cancellable] = None
 
+  var addToUnprocessedOffers: (List[UnprocessedOffer], UnprocessedOffer) => List[UnprocessedOffer] = (offersQueue: List[UnprocessedOffer], unprocessedOffer: UnprocessedOffer) =>
+    offersQueue.::(unprocessedOffer)
   override def preStart(): Unit = {
     implicit val ec = context.system.dispatcher
     val timeout = conf.offerMatchingTimeout()
     timerTick = Some(context.system.scheduler.schedule(timeout, timeout, self, CleanUpOverdueOffers))
+    // choose the strategy of insertion at initialization for the unprocessed offers queue
+    if (conf.queuedOffersFifo.toOption.get == true) {
+      addToUnprocessedOffers = {
+        logger.info(s"Unrpocessed Offers FIFO Mode is activated")
+        (offersQueue: List[UnprocessedOffer], unprocessedOffer: UnprocessedOffer) => offersQueue :+ unprocessedOffer
+      }
+    }
+
   }
 
   override def postStop(): Unit = {
@@ -184,22 +194,32 @@ private[impl] class OfferMatcherManagerActor private (
   def receiveProcessOffer: Receive = {
     case ActorOfferMatcher.MatchOffer(offer: Offer, promise: Promise[OfferMatcher.MatchedInstanceOps]) if !offersWanted =>
       completeWithNoMatch("No offers wanted", offer, promise, resendThisOffer = matchers.nonEmpty)
-
+      logger.debug(s"the Offer not wanted is coming from ${offer.getHostname}")
     case ActorOfferMatcher.MatchOffer(offer: Offer, promise: Promise[OfferMatcher.MatchedInstanceOps]) =>
       val deadline = clock.now() + conf.offerMatchingTimeout()
       if (offerQueues.size < conf.maxParallelOffers()) {
         startProcessOffer(offer, deadline, promise)
+        logger.debug(s"the Offer processing is coming from ${offer.getHostname}")
       } else if (unprocessedOffers.size < conf.maxQueuedOffers()) {
-        logger.debug(s"The maximum number of configured offers is processed at the moment. Queue offer ${offer.getId.getValue}.")
-        unprocessedOffers ::= UnprocessedOffer(offer, deadline, promise)
+        //        logger.debug(s"The maximum number of configured offers is processed at the moment. Queue offer ${offer.getId.getValue}.")
+        /*  if (conf.queuedOffersFifo.toOption.get == true) {
+          logger.debug(s"The offer queue is parametred to use the FIFO order.")
+          unprocessedOffers = unprocessedOffers :+ UnprocessedOffer(offer, deadline, promise)
+        } else {
+          logger.debug(s"The offer queue is parametred to use the LIFO order.")
+          unprocessedOffers ::= UnprocessedOffer(offer, deadline, promise)
+        }*/
+        logger.debug(s"the Offer unprocessed is coming from ${offer.getHostname}")
+        unprocessedOffers = addToUnprocessedOffers(unprocessedOffers, UnprocessedOffer(offer, deadline, promise));
+
       } else {
         completeWithNoMatch("Queue is full", offer, promise, resendThisOffer = true)
       }
     case CleanUpOverdueOffers =>
-      logger.debug(
+      /*logger.debug(
         s"Current State: LaunchTokens:$launchTokens OffersWanted:$offersWanted Matchers:${matchers.size} " +
           s"OfferQueues:${offerQueues.size} UnprocessedOffers:${unprocessedOffers.size}"
-      )
+      )*/
       rejectElapsedOffers()
   }
 
@@ -251,7 +271,7 @@ private[impl] class OfferMatcherManagerActor private (
     */
   def rejectElapsedOffers(): Unit = {
     // unprocessed offers are stacked in order with the newest element first: so we can use span here.
-    val (valid, overdue) = unprocessedOffers.span(_.notOverdue(clock))
+    val (overdue, valid) = unprocessedOffers.span(_.isOverdue(clock))
     logger.debug(s"Reject Elapsed offers. Unprocessed: ${unprocessedOffers.size} Overdue:${overdue.size}")
     unprocessedOffers = valid
     overdue.foreach { over =>
