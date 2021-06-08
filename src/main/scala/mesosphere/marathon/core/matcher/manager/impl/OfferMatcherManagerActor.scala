@@ -117,9 +117,9 @@ private[impl] class OfferMatcherManagerActor private (
     val timeout = conf.offerMatchingTimeout()
     timerTick = Some(context.system.scheduler.schedule(timeout, timeout, self, CleanUpOverdueOffers))
     // choose the strategy of insertion at initialization for the unprocessed offers queue
-    if (conf.queuedOffersFifo.toOption.get == true) {
+    if (conf.queuedOffersFifo.toOption.get) {
       addToUnprocessedOffers = {
-        logger.info(s"Unrpocessed Offers FIFO Mode is activated")
+        logger.info(s"Unprocessed Offers FIFO Mode is activated")
         (offersQueue: List[UnprocessedOffer], unprocessedOffer: UnprocessedOffer) => offersQueue :+ unprocessedOffer
       }
     }
@@ -199,9 +199,7 @@ private[impl] class OfferMatcherManagerActor private (
       if (offerQueues.size < conf.maxParallelOffers()) {
         startProcessOffer(offer, deadline, promise)
       } else if (unprocessedOffers.size < conf.maxQueuedOffers()) {
-       logger.debug(s"The maximum number of configured offers is processed at the moment. Queue offer ${offer.getId.getValue}.")
-        // Old code 
-        // unprocessedOffers ::= UnprocessedOffer(offer, deadline, promise)
+        logger.debug(s"The maximum number of configured offers is processed at the moment. Queue offer ${offer.getId.getValue}.")
         unprocessedOffers = addToUnprocessedOffers(unprocessedOffers, UnprocessedOffer(offer, deadline, promise));
 
       } else {
