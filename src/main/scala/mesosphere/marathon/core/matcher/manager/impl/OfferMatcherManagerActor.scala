@@ -112,16 +112,22 @@ private[impl] class OfferMatcherManagerActor private (
 
   var addToUnprocessedOffers: (List[UnprocessedOffer], UnprocessedOffer) => List[UnprocessedOffer] = (offersQueue: List[UnprocessedOffer], unprocessedOffer: UnprocessedOffer) =>
     offersQueue.::(unprocessedOffer)
+
+  var filterOverdueOffers: (List[UnprocessedOffer]) => (List[UnprocessedOffer], List[UnprocessedOffer]) = (unprocessedOffers: List[UnprocessedOffer]) =>
+    unprocessedOffers.span(_.notOverdue(clock))
+
   override def preStart(): Unit = {
     implicit val ec = context.system.dispatcher
     val timeout = conf.offerMatchingTimeout()
     timerTick = Some(context.system.scheduler.schedule(timeout, timeout, self, CleanUpOverdueOffers))
-    // choose the strategy of insertion at initialization for the unprocessed offers queue
+    // choose the strategy of insertion and filtering at initialization for the unprocessed offers queue
     if (conf.queuedOffersFifo.toOption.get) {
       addToUnprocessedOffers = {
         logger.info(s"Unprocessed Offers FIFO Mode is activated")
         (offersQueue: List[UnprocessedOffer], unprocessedOffer: UnprocessedOffer) => offersQueue :+ unprocessedOffer
       }
+      filterOverdueOffers = (unprocessedOffers: List[UnprocessedOffer]) =>
+        unprocessedOffers.span(_.isOverdue(clock)).swap
     }
 
   }
@@ -260,8 +266,9 @@ private[impl] class OfferMatcherManagerActor private (
     * Filter all unprocessed offers that are overdue and decline.
     */
   def rejectElapsedOffers(): Unit = {
-    // unprocessed offers are stacked in order with the oldest element first: so we can use span here.
-    val (overdue, valid) = unprocessedOffers.span(_.isOverdue(clock))
+    // the order of the unprocessed offers in the queue is depending on the queued_offer_fifo parameter
+    // the filterOverdueOffers does a span on the list depending on the parameter also
+    val (valid, overdue) = filterOverdueOffers(unprocessedOffers)
     logger.debug(s"Reject Elapsed offers. Unprocessed: ${unprocessedOffers.size} Overdue:${overdue.size}")
     unprocessedOffers = valid
     overdue.foreach { over =>
